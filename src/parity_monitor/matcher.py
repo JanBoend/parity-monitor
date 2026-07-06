@@ -37,50 +37,65 @@ def match_events(
     live_matched = [False] * len(live)
     matched_rows = []
 
+    # Pre-extract to plain Python tuples via itertuples() so the O(n*m) scan
+    # below doesn't pay pandas' per-access Series-boxing cost on every cell.
+    bt_records = list(bt.itertuples(index=True))
+    live_records = list(live.itertuples(index=True))
+
     def tolerance_for(event_type: str) -> pd.Timedelta:
         return time_tolerance_fills if event_type == "fill" else time_tolerance_signals
 
     # Pass 1: exact match by signal_id (when present on both sides).
-    for i, bt_row in bt.iterrows():
-        if pd.isna(bt_row["signal_id"]):
+    for bt_rec in bt_records:
+        i = bt_rec.Index
+        if pd.isna(bt_rec.signal_id):
             continue
-        for j, live_row in live.iterrows():
-            if live_matched[j] or pd.isna(live_row["signal_id"]):
+        for live_rec in live_records:
+            j = live_rec.Index
+            if live_matched[j] or pd.isna(live_rec.signal_id):
                 continue
             if (
-                bt_row["signal_id"] == live_row["signal_id"]
-                and bt_row["symbol"] == live_row["symbol"]
-                and bt_row["event_type"] == live_row["event_type"]
-                and bt_row["direction"] == live_row["direction"]
+                bt_rec.signal_id == live_rec.signal_id
+                and bt_rec.symbol == live_rec.symbol
+                and bt_rec.event_type == live_rec.event_type
+                and bt_rec.direction == live_rec.direction
             ):
-                matched_rows.append(_pair_row(bt_row, live_row))
+                matched_rows.append(_pair_row(bt_rec, live_rec))
                 bt_matched[i] = True
                 live_matched[j] = True
                 break
 
     # Pass 2: nearest-timestamp match within tolerance for everything left.
-    for i, bt_row in bt.iterrows():
+    # Collect ALL valid (gap, bt_i, live_j) candidates first, then claim them
+    # globally in ascending-gap order. This guarantees a genuinely nearest
+    # match rather than whichever bt row happens to be iterated first — a
+    # bt row processed later in DataFrame order can still "win" a live row
+    # away from an earlier bt row if its gap is smaller.
+    candidates = []
+    for bt_rec in bt_records:
+        i = bt_rec.Index
         if bt_matched[i]:
             continue
-        best_j = None
-        best_gap = None
-        for j, live_row in live.iterrows():
+        for live_rec in live_records:
+            j = live_rec.Index
             if live_matched[j]:
                 continue
             if (
-                bt_row["symbol"] != live_row["symbol"]
-                or bt_row["event_type"] != live_row["event_type"]
-                or bt_row["direction"] != live_row["direction"]
+                bt_rec.symbol != live_rec.symbol
+                or bt_rec.event_type != live_rec.event_type
+                or bt_rec.direction != live_rec.direction
             ):
                 continue
-            gap = abs(bt_row["timestamp"] - live_row["timestamp"])
-            if gap <= tolerance_for(bt_row["event_type"]) and (best_gap is None or gap < best_gap):
-                best_gap = gap
-                best_j = j
-        if best_j is not None:
-            matched_rows.append(_pair_row(bt_row, live.loc[best_j]))
-            bt_matched[i] = True
-            live_matched[best_j] = True
+            gap = abs(bt_rec.timestamp - live_rec.timestamp)
+            if gap <= tolerance_for(bt_rec.event_type):
+                candidates.append((gap, i, j))
+
+    for gap, i, j in sorted(candidates, key=lambda c: c[0]):
+        if bt_matched[i] or live_matched[j]:
+            continue
+        matched_rows.append(_pair_row(bt_records[i], live_records[j]))
+        bt_matched[i] = True
+        live_matched[j] = True
 
     matched_df = pd.DataFrame(matched_rows) if matched_rows else _empty_matched_frame()
     missing_in_live = bt[~pd.Series(bt_matched)].reset_index(drop=True)
@@ -88,18 +103,18 @@ def match_events(
     return MatchResult(matched=matched_df, missing_in_live=missing_in_live, extra_in_live=extra_in_live)
 
 
-def _pair_row(bt_row: pd.Series, live_row: pd.Series) -> dict:
+def _pair_row(bt_row, live_row) -> dict:
     return {
-        "symbol": bt_row["symbol"],
-        "event_type": bt_row["event_type"],
-        "direction": bt_row["direction"],
-        "signal_id": bt_row["signal_id"],
-        "bt_timestamp": bt_row["timestamp"],
-        "bt_price": bt_row["price"],
-        "bt_size": bt_row["size"],
-        "live_timestamp": live_row["timestamp"],
-        "live_price": live_row["price"],
-        "live_size": live_row["size"],
+        "symbol": bt_row.symbol,
+        "event_type": bt_row.event_type,
+        "direction": bt_row.direction,
+        "signal_id": bt_row.signal_id,
+        "bt_timestamp": bt_row.timestamp,
+        "bt_price": bt_row.price,
+        "bt_size": bt_row.size,
+        "live_timestamp": live_row.timestamp,
+        "live_price": live_row.price,
+        "live_size": live_row.size,
     }
 
 
