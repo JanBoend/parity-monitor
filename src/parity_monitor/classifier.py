@@ -32,7 +32,7 @@ def classify_matches(
 
     df = matched_df.copy()
     df["time_gap_seconds"] = (df["live_timestamp"] - df["bt_timestamp"]).abs().dt.total_seconds()
-    df["price_diff_pct"] = (df["live_price"] - df["bt_price"]) / df["bt_price"] * 100
+    df["price_diff_pct"] = df.apply(_price_diff_pct, axis=1)
     df["size_diff_pct"] = df.apply(_size_diff_pct, axis=1)
 
     def category_for(row) -> str:
@@ -47,6 +47,12 @@ def classify_matches(
 
     df["category"] = df.apply(category_for, axis=1)
     return df
+
+
+def _price_diff_pct(row) -> float:
+    if row["bt_price"] == 0:
+        return 0.0 if row["live_price"] == 0 else float("inf")
+    return (row["live_price"] - row["bt_price"]) / row["bt_price"] * 100
 
 
 def _size_diff_pct(row) -> float:

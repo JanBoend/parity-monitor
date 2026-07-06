@@ -55,6 +55,39 @@ def test_timing_takes_priority_over_price():
     assert result.iloc[0]["category"] == "timing_divergence"
 
 
+def test_zero_bt_price_and_zero_live_price_does_not_crash():
+    # Both zero -> price_diff_pct is 0.0 (not NaN), so this alone must not
+    # trigger price_divergence; force a size divergence so the row isn't
+    # trivially "matched" for uninteresting reasons.
+    df = pd.DataFrame([_matched_row(bt_price=0.0, live_price=0.0, live_size=10500)])
+    result = classify_matches(df, pd.Timedelta(seconds=5), pd.Timedelta(seconds=60), 0.1, 1.0)
+    assert result.iloc[0]["price_diff_pct"] == 0.0
+    assert result.iloc[0]["category"] == "size_divergence"
+
+
+def test_zero_bt_price_with_nonzero_live_price_is_price_divergence():
+    df = pd.DataFrame([_matched_row(bt_price=0.0, live_price=1.0850)])
+    result = classify_matches(df, pd.Timedelta(seconds=5), pd.Timedelta(seconds=60), 0.1, 1.0)
+    assert result.iloc[0]["price_diff_pct"] == float("inf")
+    assert result.iloc[0]["category"] == "price_divergence"
+
+
+def test_price_and_size_exceed_but_timing_does_not_price_wins():
+    df = pd.DataFrame([_matched_row(live_price=1.0870, live_size=10500)])
+    result = classify_matches(df, pd.Timedelta(seconds=5), pd.Timedelta(seconds=60), 0.1, 1.0)
+    assert result.iloc[0]["category"] == "price_divergence"
+
+
+def test_timing_price_and_size_all_exceed_timing_wins():
+    df = pd.DataFrame([_matched_row(
+        live_timestamp=pd.Timestamp("2026-07-06T09:00:10", tz="UTC"),
+        live_price=1.0870,
+        live_size=10500,
+    )])
+    result = classify_matches(df, pd.Timedelta(seconds=5), pd.Timedelta(seconds=60), 0.1, 1.0)
+    assert result.iloc[0]["category"] == "timing_divergence"
+
+
 def test_combine_results_includes_missing_and_extra():
     classified = classify_matches(
         pd.DataFrame([_matched_row()]),
