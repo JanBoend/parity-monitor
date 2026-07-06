@@ -17,6 +17,7 @@ def run(
     size_tolerance_pct: float = 1.0,
     worst_offenders_n: int = 5,
 ) -> tuple[pd.DataFrame, dict]:
+    """Load backtest/live logs, match and classify their events, and return the combined results with a summary."""
     backtest_df = load_log(backtest_path)
     live_df = load_log(live_path)
 
