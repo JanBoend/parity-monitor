@@ -85,3 +85,63 @@ def _format_offender(row) -> str:
     if category == "size_divergence":
         return f"{prefix} bt_timestamp={row['bt_timestamp']} size_diff_pct={row['size_diff_pct']}"
     return prefix
+
+
+def write_report(results_df: pd.DataFrame, summary: dict, path: str, fmt: str) -> None:
+    if fmt not in ("html", "md"):
+        raise ValueError(f"Unsupported report format: {fmt}. Must be 'html' or 'md'.")
+    content = _render_markdown(results_df, summary) if fmt == "md" else _render_html(results_df, summary)
+    with open(path, "w") as f:
+        f.write(content)
+
+
+def _render_markdown(results_df: pd.DataFrame, summary: dict) -> str:
+    match_rate = (
+        "N/A (no comparable events)"
+        if summary["match_rate_pct"] is None
+        else f"{summary['match_rate_pct']:.1f}%"
+    )
+    lines = [
+        "# Parity Monitor Report",
+        "",
+        f"Total events compared: {summary['total_events']}",
+        f"Match rate: {match_rate}",
+        "",
+        "## Category breakdown",
+        "",
+    ]
+    for category, count in sorted(summary["category_counts"].items()):
+        lines.append(f"- **{category}**: {count}")
+    lines.append("")
+    lines.append("## All events")
+    lines.append("")
+    lines.append(results_df.to_markdown(index=False))
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _render_html(results_df: pd.DataFrame, summary: dict) -> str:
+    match_rate = (
+        "N/A (no comparable events)"
+        if summary["match_rate_pct"] is None
+        else f"{summary['match_rate_pct']:.1f}%"
+    )
+    rows_html = results_df.to_html(index=False)
+    counts_html = "".join(
+        f"<li><strong>{category}</strong>: {count}</li>"
+        for category, count in sorted(summary["category_counts"].items())
+    )
+    return f"""<!DOCTYPE html>
+<html>
+<head><title>Parity Monitor Report</title></head>
+<body>
+<h1>Parity Monitor Report</h1>
+<p>Total events compared: {summary['total_events']}</p>
+<p>Match rate: {match_rate}</p>
+<h2>Category breakdown</h2>
+<ul>{counts_html}</ul>
+<h2>All events</h2>
+{rows_html}
+</body>
+</html>
+"""

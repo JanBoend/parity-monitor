@@ -1,6 +1,7 @@
 import pandas as pd
+import pytest
 
-from parity_monitor.report import compute_summary, print_summary
+from parity_monitor.report import compute_summary, print_summary, write_report
 
 
 def _row(category, **overrides):
@@ -108,3 +109,30 @@ def test_tie_order_preserves_combine_results_row_order():
     summary = compute_summary(df, worst_offenders_n=3)
     worst = summary["worst_offenders"]
     assert list(worst["signal_id"]) == ["third", "first", "second"]
+
+
+def test_write_report_markdown(tmp_path):
+    df = pd.DataFrame([_row("matched")])
+    summary = compute_summary(df)
+    path = tmp_path / "report.md"
+    write_report(df, summary, str(path), "md")
+    content = path.read_text()
+    assert "# Parity Monitor Report" in content
+    assert "Match rate" in content
+
+
+def test_write_report_html(tmp_path):
+    df = pd.DataFrame([_row("matched")])
+    summary = compute_summary(df)
+    path = tmp_path / "report.html"
+    write_report(df, summary, str(path), "html")
+    content = path.read_text()
+    assert "<h1>Parity Monitor Report</h1>" in content
+
+
+def test_write_report_invalid_format_raises(tmp_path):
+    df = pd.DataFrame([_row("matched")])
+    summary = compute_summary(df)
+    path = tmp_path / "report.txt"
+    with pytest.raises(ValueError, match="Unsupported report format"):
+        write_report(df, summary, str(path), "txt")
