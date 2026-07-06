@@ -136,3 +136,38 @@ def test_write_report_invalid_format_raises(tmp_path):
     path = tmp_path / "report.txt"
     with pytest.raises(ValueError, match="Unsupported report format"):
         write_report(df, summary, str(path), "txt")
+
+
+def test_write_report_html_escapes_special_characters(tmp_path):
+    # to_html's default escape=True must remain in effect. A future edit that
+    # accidentally passes escape=False should break this test.
+    df = pd.DataFrame([_row("matched", symbol="<script>alert(1)</script>")])
+    summary = compute_summary(df)
+    path = tmp_path / "report.html"
+    write_report(df, summary, str(path), "html")
+    content = path.read_text()
+    assert "<script>alert(1)</script>" not in content
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in content
+
+
+def test_write_report_nonexistent_parent_directory_raises(tmp_path):
+    df = pd.DataFrame([_row("matched")])
+    summary = compute_summary(df)
+    path = tmp_path / "nonexistent" / "report.html"
+    with pytest.raises(FileNotFoundError):
+        write_report(df, summary, str(path), "html")
+
+
+def test_write_report_overwrites_existing_file(tmp_path):
+    df1 = pd.DataFrame([_row("matched", signal_id="first-run")])
+    summary1 = compute_summary(df1)
+    path = tmp_path / "report.md"
+    write_report(df1, summary1, str(path), "md")
+
+    df2 = pd.DataFrame([_row("missing_in_live", signal_id="second-run")])
+    summary2 = compute_summary(df2)
+    write_report(df2, summary2, str(path), "md")
+
+    content = path.read_text()
+    assert "first-run" not in content
+    assert "second-run" in content

@@ -88,10 +88,16 @@ def _format_offender(row) -> str:
 
 
 def write_report(results_df: pd.DataFrame, summary: dict, path: str, fmt: str) -> None:
+    """Render results_df/summary as an HTML or Markdown report and write it to path.
+
+    Overwrites path if it already exists. The parent directory must already
+    exist — this raises FileNotFoundError otherwise (it does not create
+    intermediate directories).
+    """
     if fmt not in ("html", "md"):
         raise ValueError(f"Unsupported report format: {fmt}. Must be 'html' or 'md'.")
     content = _render_markdown(results_df, summary) if fmt == "md" else _render_html(results_df, summary)
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write(content)
 
 
@@ -115,6 +121,11 @@ def _render_markdown(results_df: pd.DataFrame, summary: dict) -> str:
     lines.append("")
     lines.append("## All events")
     lines.append("")
+    # Note: unlike _render_html (which uses to_html's escape=True default),
+    # to_markdown does NOT escape special characters — a value containing
+    # "<script>" passes through raw into the .md output. Accepted as a known
+    # limitation: this is a local CLI tool rendering the user's own trading
+    # data, not a web-facing renderer of untrusted third-party input.
     lines.append(results_df.to_markdown(index=False))
     lines.append("")
     return "\n".join(lines)
