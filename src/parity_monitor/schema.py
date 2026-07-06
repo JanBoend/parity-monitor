@@ -35,12 +35,24 @@ def load_log(path: str) -> pd.DataFrame:
 
     df = df[REQUIRED_COLUMNS].copy()
 
+    if df["event_type"].isna().any():
+        raise SchemaError(
+            f"Log file '{path}' has blank event_type value(s). Must be one of: "
+            f"{', '.join(sorted(EVENT_TYPES))}"
+        )
+
     bad_event_types = set(df["event_type"].unique()) - EVENT_TYPES
     if bad_event_types:
         raise SchemaError(
             f"Log file '{path}' has invalid event_type value(s): "
             f"{', '.join(sorted(bad_event_types))}. Must be one of: "
             f"{', '.join(sorted(EVENT_TYPES))}"
+        )
+
+    if df["direction"].isna().any():
+        raise SchemaError(
+            f"Log file '{path}' has blank direction value(s). Must be one of: "
+            f"{', '.join(sorted(DIRECTIONS))}"
         )
 
     bad_directions = set(df["direction"].unique()) - DIRECTIONS
@@ -51,9 +63,31 @@ def load_log(path: str) -> pd.DataFrame:
             f"{', '.join(sorted(DIRECTIONS))}"
         )
 
-    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True, format="ISO8601")
-    df["price"] = df["price"].astype(float)
-    df["size"] = df["size"].astype(float)
+    try:
+        df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True, format="ISO8601")
+    except (ValueError, TypeError) as exc:
+        raise SchemaError(
+            f"Log file '{path}' has invalid timestamp value(s): {exc}"
+        ) from exc
+
+    if df["price"].isna().any():
+        raise SchemaError(f"Log file '{path}' has blank price value(s).")
+    try:
+        df["price"] = df["price"].astype(float)
+    except (ValueError, TypeError) as exc:
+        raise SchemaError(
+            f"Log file '{path}' has invalid price value(s): {exc}"
+        ) from exc
+
+    if df["size"].isna().any():
+        raise SchemaError(f"Log file '{path}' has blank size value(s).")
+    try:
+        df["size"] = df["size"].astype(float)
+    except (ValueError, TypeError) as exc:
+        raise SchemaError(
+            f"Log file '{path}' has invalid size value(s): {exc}"
+        ) from exc
+
     df["signal_id"] = df["signal_id"].replace("", pd.NA)
 
     df = df.sort_values(["symbol", "timestamp"]).reset_index(drop=True)

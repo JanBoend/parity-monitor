@@ -54,3 +54,59 @@ def test_load_invalid_direction_raises(tmp_path):
     ])
     with pytest.raises(SchemaError, match="direction"):
         load_log(str(path))
+
+
+def test_load_blank_event_type_raises(tmp_path):
+    path = _write_csv(tmp_path, [
+        "2026-07-06T09:00:00Z,EURUSD,,long,1.0850,10000,sig-1",
+    ])
+    with pytest.raises(SchemaError, match="event_type"):
+        load_log(str(path))
+
+
+def test_load_blank_direction_raises(tmp_path):
+    path = _write_csv(tmp_path, [
+        "2026-07-06T09:00:00Z,EURUSD,signal,,1.0850,10000,sig-1",
+    ])
+    with pytest.raises(SchemaError, match="direction"):
+        load_log(str(path))
+
+
+def test_load_non_numeric_price_raises(tmp_path):
+    path = _write_csv(tmp_path, [
+        "2026-07-06T09:00:00Z,EURUSD,signal,long,notanumber,10000,sig-1",
+    ])
+    with pytest.raises(SchemaError, match="price"):
+        load_log(str(path))
+
+
+def test_load_non_numeric_size_raises(tmp_path):
+    path = _write_csv(tmp_path, [
+        "2026-07-06T09:00:00Z,EURUSD,signal,long,1.0850,notanumber,sig-1",
+    ])
+    with pytest.raises(SchemaError, match="size"):
+        load_log(str(path))
+
+
+def test_load_malformed_timestamp_raises(tmp_path):
+    path = _write_csv(tmp_path, [
+        "not-a-date,EURUSD,signal,long,1.0850,10000,sig-1",
+    ])
+    with pytest.raises(SchemaError, match="timestamp"):
+        load_log(str(path))
+
+
+def test_load_blank_price_raises(tmp_path):
+    path = _write_csv(tmp_path, [
+        "2026-07-06T09:00:00Z,EURUSD,signal,long,,10000,sig-1",
+    ])
+    with pytest.raises(SchemaError, match="price"):
+        load_log(str(path))
+
+
+def test_load_blank_size_raises(tmp_path):
+    path = _write_csv(tmp_path, [
+        "2026-07-06T09:00:00Z,EURUSD,signal,long,1.0850,,sig-1",
+    ])
+    with pytest.raises(SchemaError, match="size"):
+        load_log(str(path))
