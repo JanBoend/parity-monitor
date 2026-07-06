@@ -21,12 +21,17 @@ def compute_summary(results_df: pd.DataFrame, worst_offenders_n: int = 5) -> dic
     matched = counts.get("matched", 0)
     extra = counts.get("extra_in_live", 0)
     comparable_total = total - extra
-    match_rate_pct = (matched / comparable_total * 100) if comparable_total > 0 else 0.0
+    # None (not 0.0) when there's nothing comparable — 0.0 would misleadingly
+    # read as "everything failed to match" rather than "nothing to compare".
+    match_rate_pct = (matched / comparable_total * 100) if comparable_total > 0 else None
 
     non_matched = results_df[results_df["category"] != "matched"].copy()
     non_matched["_severity_rank"] = non_matched["category"].map(CATEGORY_SEVERITY)
     non_matched["_magnitude"] = non_matched.apply(_magnitude, axis=1)
     n = max(worst_offenders_n, 0)
+    # Multi-column sort_values dispatches to np.lexsort, which is stable, so
+    # ties (e.g. multiple missing_in_live rows, all at magnitude 0.0) preserve
+    # combine_results' original row order deterministically.
     worst = non_matched.sort_values(
         ["_severity_rank", "_magnitude"], ascending=[True, False]
     ).head(n)
@@ -51,7 +56,10 @@ def _magnitude(row) -> float:
 
 def print_summary(summary: dict) -> None:
     print(f"Total events compared: {summary['total_events']}")
-    print(f"Match rate: {summary['match_rate_pct']:.1f}%")
+    if summary["match_rate_pct"] is None:
+        print("Match rate: N/A (no comparable events)")
+    else:
+        print(f"Match rate: {summary['match_rate_pct']:.1f}%")
     print()
     print("Breakdown by category:")
     for category, count in sorted(summary["category_counts"].items()):
@@ -60,4 +68,20 @@ def print_summary(summary: dict) -> None:
     if not summary["worst_offenders"].empty:
         print(f"Top {len(summary['worst_offenders'])} worst offenders:")
         for _, row in summary["worst_offenders"].iterrows():
-            print(f"  [{row['category']}] {row['symbol']} signal_id={row['signal_id']}")
+            print(f"  {_format_offender(row)}")
+
+
+def _format_offender(row) -> str:
+    category = row["category"]
+    prefix = f"[{category}] {row['symbol']} signal_id={row['signal_id']}"
+    if category == "missing_in_live":
+        return f"{prefix} bt_timestamp={row['bt_timestamp']} bt_price={row['bt_price']}"
+    if category == "extra_in_live":
+        return f"{prefix} live_timestamp={row['live_timestamp']} live_price={row['live_price']}"
+    if category == "timing_divergence":
+        return f"{prefix} bt_timestamp={row['bt_timestamp']} time_gap_seconds={row['time_gap_seconds']}"
+    if category == "price_divergence":
+        return f"{prefix} bt_timestamp={row['bt_timestamp']} price_diff_pct={row['price_diff_pct']}"
+    if category == "size_divergence":
+        return f"{prefix} bt_timestamp={row['bt_timestamp']} size_diff_pct={row['size_diff_pct']}"
+    return prefix

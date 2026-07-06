@@ -56,3 +56,55 @@ def test_print_summary_smoke(capsys):
     captured = capsys.readouterr()
     assert "Match rate" in captured.out
     assert "Total events compared" in captured.out
+
+
+def test_match_rate_is_none_when_nothing_comparable(capsys):
+    # Only extra_in_live rows: nothing from the backtest side to compare
+    # against. 0.0% would misleadingly read as "total mismatch" instead of
+    # "nothing to compare".
+    df = pd.DataFrame([
+        _row("extra_in_live"),
+        _row("extra_in_live"),
+    ])
+    summary = compute_summary(df)
+    assert summary["match_rate_pct"] is None
+
+    print_summary(summary)
+    captured = capsys.readouterr()
+    assert "N/A" in captured.out
+    assert "0.0%" not in captured.out
+
+
+def test_worst_offenders_n_larger_than_available_returns_all():
+    df = pd.DataFrame([
+        _row("matched"),
+        _row("price_divergence", price_diff_pct=5.0),
+        _row("missing_in_live"),
+    ])
+    summary = compute_summary(df, worst_offenders_n=100)
+    # only 2 non-matched rows exist, even though n=100 was requested
+    assert len(summary["worst_offenders"]) == 2
+
+
+def test_negative_worst_offenders_n_returns_zero_rows():
+    df = pd.DataFrame([
+        _row("price_divergence", price_diff_pct=5.0),
+        _row("missing_in_live"),
+    ])
+    summary = compute_summary(df, worst_offenders_n=-1)
+    assert len(summary["worst_offenders"]) == 0
+
+
+def test_tie_order_preserves_combine_results_row_order():
+    # Multiple missing_in_live rows all have magnitude 0.0 (no time/price/size
+    # divergence value applies), so they tie within their severity tier.
+    # sort_values on multiple columns dispatches to np.lexsort (stable), so
+    # ties should preserve the original row order.
+    df = pd.DataFrame([
+        _row("missing_in_live", signal_id="third"),
+        _row("missing_in_live", signal_id="first"),
+        _row("missing_in_live", signal_id="second"),
+    ])
+    summary = compute_summary(df, worst_offenders_n=3)
+    worst = summary["worst_offenders"]
+    assert list(worst["signal_id"]) == ["third", "first", "second"]
