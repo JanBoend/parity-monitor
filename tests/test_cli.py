@@ -1,3 +1,6 @@
+import sys
+from unittest.mock import patch
+
 import pytest
 
 from parity_monitor.cli import main
@@ -67,6 +70,32 @@ def test_cli_report_write_failure_returns_error_exit_code(tmp_path, capsys):
     assert "error:" in captured.err
     assert "Traceback" not in captured.err
     assert "Match rate" in captured.out
+
+
+def test_cli_report_write_failure_flushes_stdout_before_stderr_error(tmp_path, capsys):
+    # capsys captures stdout/stderr as independent streams, so it can't
+    # directly observe interleaving under a merged/redirected stream (e.g.
+    # `cmd > combined.txt 2>&1`). Instead, assert the concrete mechanism that
+    # fixes that ordering bug -- sys.stdout.flush() -- is actually called
+    # before the stderr error is printed, and that the summary content made
+    # it into stdout regardless.
+    bt_path = tmp_path / "backtest.csv"
+    live_path = tmp_path / "live.csv"
+    bad_report_path = tmp_path / "no_such_dir" / "out.md"
+    _write(bt_path, ["2026-07-06T09:00:00Z,EURUSD,fill,long,1.0850,10000,sig-1"])
+    _write(live_path, ["2026-07-06T09:00:02Z,EURUSD,fill,long,1.0850,10000,sig-1"])
+
+    with patch.object(sys.stdout, "flush", wraps=sys.stdout.flush) as mock_flush:
+        exit_code = main([
+            str(bt_path), str(live_path),
+            "--report", "md", "--report-path", str(bad_report_path),
+        ])
+
+    assert exit_code == 1
+    assert mock_flush.called
+    captured = capsys.readouterr()
+    assert "Match rate" in captured.out
+    assert "error:" in captured.err
 
 
 def test_cli_no_arguments_exits_with_code_2():

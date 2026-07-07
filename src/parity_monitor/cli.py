@@ -71,6 +71,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             write_report(results_df, summary, report_path, args.report)
         except OSError as e:
+            sys.stdout.flush()
             print(f"error: could not write report to '{report_path}': {e}", file=sys.stderr)
             return 1
         print(f"\nDetailed report written to {report_path}")
