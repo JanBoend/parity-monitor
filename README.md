@@ -16,10 +16,22 @@ Runs entirely on your own machine, self-hosted. Your logs never leave it.
 pip install parity-monitor
 ```
 
+Requires Python 3.10+.
+
 ## Quick start
 
+Clone the repo to try the bundled example logs:
+
 ```
+git clone https://github.com/<your-username>/parity-monitor.git
+cd parity-monitor
 parity-monitor examples/backtest.csv examples/live.csv
+```
+
+Or point it at your own backtest/live CSV logs (see Log format below):
+
+```
+parity-monitor your_backtest.csv your_live.csv
 ```
 
 ## Log format
@@ -60,4 +72,4 @@ execution). Live events with no backtest counterpart are `extra_in_live`.
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE) for details.
