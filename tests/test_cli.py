@@ -1,3 +1,5 @@
+import pytest
+
 from parity_monitor.cli import main
 
 
@@ -46,3 +48,51 @@ def test_cli_invalid_schema_returns_error_exit_code(tmp_path, capsys):
     captured = capsys.readouterr()
     assert exit_code == 1
     assert "error:" in captured.err
+
+
+def test_cli_report_write_failure_returns_error_exit_code(tmp_path, capsys):
+    bt_path = tmp_path / "backtest.csv"
+    live_path = tmp_path / "live.csv"
+    bad_report_path = tmp_path / "no_such_dir" / "out.md"
+    _write(bt_path, ["2026-07-06T09:00:00Z,EURUSD,fill,long,1.0850,10000,sig-1"])
+    _write(live_path, ["2026-07-06T09:00:02Z,EURUSD,fill,long,1.0850,10000,sig-1"])
+
+    exit_code = main([
+        str(bt_path), str(live_path),
+        "--report", "md", "--report-path", str(bad_report_path),
+    ])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "error:" in captured.err
+    assert "Traceback" not in captured.err
+    assert "Match rate" in captured.out
+
+
+def test_cli_no_arguments_exits_with_code_2():
+    with pytest.raises(SystemExit) as exc_info:
+        main([])
+
+    assert exc_info.value.code == 2
+
+
+def test_cli_invalid_report_choice_exits_with_code_2(tmp_path):
+    bt_path = tmp_path / "backtest.csv"
+    live_path = tmp_path / "live.csv"
+    _write(bt_path, ["2026-07-06T09:00:00Z,EURUSD,fill,long,1.0850,10000,sig-1"])
+    _write(live_path, ["2026-07-06T09:00:02Z,EURUSD,fill,long,1.0850,10000,sig-1"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        main([str(bt_path), str(live_path), "--report", "txt"])
+
+    assert exc_info.value.code == 2
+
+
+def test_cli_help_smoke(capsys):
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--help"])
+
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    assert "backtest_log" in captured.out
+    assert "live_log" in captured.out

@@ -68,7 +68,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.report:
         report_path = args.report_path or f"parity_report.{args.report}"
-        write_report(results_df, summary, report_path, args.report)
+        try:
+            write_report(results_df, summary, report_path, args.report)
+        except OSError as e:
+            print(f"error: could not write report to '{report_path}': {e}", file=sys.stderr)
+            return 1
         print(f"\nDetailed report written to {report_path}")
 
     return 0
