@@ -1,0 +1,6 @@
+timestamp,symbol,event_type,direction,price,size,signal_id
+2026-07-06T09:00:02Z,EURUSD,fill,long,1.0850,10000,sig-1
+2026-07-06T09:05:12Z,EURUSD,fill,short,1.0900,5000,sig-2
+2026-07-06T09:15:00Z,EURUSD,fill,short,1.0870,6000,sig-4
+2026-07-06T09:20:00Z,EURUSD,fill,long,1.0750,4200,sig-5
+2026-07-06T09:25:00Z,EURUSD,fill,short,1.0700,2000,sig-6
