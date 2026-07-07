@@ -23,7 +23,7 @@ Requires Python 3.10+.
 Clone the repo to try the bundled example logs:
 
 ```
-git clone https://github.com/<your-username>/parity-monitor.git
+git clone https://github.com/JanBoend/parity-monitor.git
 cd parity-monitor
 parity-monitor examples/backtest.csv examples/live.csv
 ```
