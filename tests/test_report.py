@@ -171,3 +171,78 @@ def test_write_report_overwrites_existing_file(tmp_path):
     content = path.read_text()
     assert "first-run" not in content
     assert "second-run" in content
+
+
+from parity_monitor.report import _colorize, color_enabled
+
+
+class _FakeTTY:
+    """Minimal stdout-like object with a controllable isatty()."""
+    def __init__(self, is_a_tty):
+        self._tty = is_a_tty
+    def isatty(self):
+        return self._tty
+
+
+def test_colorize_disabled_returns_plain_text():
+    assert _colorize("hello", "red", enabled=False) == "hello"
+
+
+def test_colorize_enabled_wraps_in_ansi():
+    out = _colorize("hello", "red", enabled=True)
+    assert out.startswith("\033[")
+    assert out.endswith("\033[0m")
+    assert "hello" in out
+
+
+def test_colorize_bold_adds_bold_code():
+    out = _colorize("hi", "green", enabled=True, bold=True)
+    assert "\033[1m" in out
+
+
+def test_color_enabled_false_when_not_tty():
+    assert color_enabled(stream=_FakeTTY(False)) is False
+
+
+def test_color_enabled_true_when_tty(monkeypatch):
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    assert color_enabled(stream=_FakeTTY(True)) is True
+
+
+def test_color_enabled_false_when_no_color_env(monkeypatch):
+    monkeypatch.setenv("NO_COLOR", "1")
+    assert color_enabled(stream=_FakeTTY(True)) is False
+
+
+def test_color_enabled_false_when_force_disabled(monkeypatch):
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    assert color_enabled(stream=_FakeTTY(True), force_disable=True) is False
+
+
+def test_print_summary_no_ansi_when_color_disabled(capsys):
+    df = pd.DataFrame([_row("matched"), _row("missing_in_live")])
+    summary = compute_summary(df)
+    print_summary(summary, color=False)
+    out = capsys.readouterr().out
+    assert "\033[" not in out  # byte-clean: no escape codes leak when disabled
+
+
+def test_print_summary_has_ansi_when_color_enabled(capsys):
+    df = pd.DataFrame([_row("matched"), _row("missing_in_live")])
+    summary = compute_summary(df)
+    print_summary(summary, color=True)
+    out = capsys.readouterr().out
+    assert "\033[" in out  # color codes present when enabled
+
+
+def test_match_rate_color_matches_rounded_display(capsys):
+    # A rate that rounds up to 100.0% must be colored green (not yellow) so the
+    # color agrees with the number the user actually sees. Regression guard for
+    # the raw-vs-rounded color threshold fix.
+    summary = compute_summary(pd.DataFrame([_row("matched")]))
+    summary["match_rate_pct"] = 99.97  # displays as "100.0%"
+    print_summary(summary, color=True)
+    out = capsys.readouterr().out
+    assert "100.0%" in out
+    assert "\033[32m" in out  # green code, not yellow (\033[33m)
+    assert "\033[33mMatch rate" not in out

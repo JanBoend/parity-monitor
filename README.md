@@ -10,6 +10,12 @@ and why (timing lag, slippage, a missing signal, a sizing mismatch).
 
 Runs entirely on your own machine, self-hosted. Your logs never leave it.
 
+[![CI](https://github.com/JanBoend/parity-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/JanBoend/parity-monitor/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+
+![parity-monitor demo](assets/demo.gif)
+
 ## Install
 
 ```
@@ -58,6 +64,7 @@ Both files are CSV with this schema:
 --report {html,md}                 write a detailed report file
 --report-path PATH                 report file location
 --worst-offenders N                default 5
+--no-color                         disable colored terminal output
 ```
 
 ## How matching works
@@ -69,6 +76,10 @@ pairs are then classified — in priority order timing > price > size — into
 Backtest events with no live counterpart are `missing_in_live` (the
 highest-severity category — it usually means a live logic bug or a failed
 execution). Live events with no backtest counterpart are `extra_in_live`.
+
+## Contributing
+
+Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for dev setup and guidelines.
 
 ## License
 

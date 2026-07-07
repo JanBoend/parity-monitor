@@ -1,6 +1,53 @@
 """Summary computation and terminal/report output for parity-monitor results."""
 
+import os
+import sys
+
 import pandas as pd
+
+_ANSI = {
+    "green": "\033[32m",
+    "red": "\033[91m",       # bright red — highest-severity category
+    "magenta": "\033[35m",
+    "yellow": "\033[33m",
+}
+_BOLD = "\033[1m"
+_RESET = "\033[0m"
+
+_CATEGORY_COLOR = {
+    "matched": "green",
+    "missing_in_live": "red",
+    "extra_in_live": "magenta",
+    "timing_divergence": "yellow",
+    "price_divergence": "yellow",
+    "size_divergence": "yellow",
+}
+
+
+def color_enabled(stream=None, force_disable: bool = False) -> bool:
+    """Decide whether to emit ANSI color: only to a real TTY, never when
+    NO_COLOR is set, never when force_disable (the --no-color flag) is set."""
+    if force_disable:
+        return False
+    if os.environ.get("NO_COLOR") is not None:
+        return False
+    stream = stream if stream is not None else sys.stdout
+    return bool(getattr(stream, "isatty", lambda: False)())
+
+
+def _colorize(text: str, color: str, enabled: bool, *, bold: bool = False) -> str:
+    """Wrap text in ANSI codes when enabled; return it untouched otherwise."""
+    if not enabled:
+        return text
+    prefix = ""
+    if bold:
+        prefix += _BOLD
+    if color in _ANSI:
+        prefix += _ANSI[color]
+    if not prefix:
+        return text
+    return f"{prefix}{text}{_RESET}"
+
 
 CATEGORY_SEVERITY = {
     "missing_in_live": 0,
@@ -54,26 +101,36 @@ def _magnitude(row) -> float:
     return 0.0
 
 
-def print_summary(summary: dict) -> None:
+def print_summary(summary: dict, color: bool = False) -> None:
     print(f"Total events compared: {summary['total_events']}")
-    if summary["match_rate_pct"] is None:
+    rate = summary["match_rate_pct"]
+    if rate is None:
         print("Match rate: N/A (no comparable events)")
     else:
-        print(f"Match rate: {summary['match_rate_pct']:.1f}%")
+        shown = round(rate, 1)  # color the displayed (rounded) value so color and number never disagree
+        if shown >= 100.0:
+            rate_color = "green"
+        elif shown <= 0.0:
+            rate_color = "red"
+        else:
+            rate_color = "yellow"
+        print(_colorize(f"Match rate: {shown:.1f}%", rate_color, color, bold=True))
     print()
     print("Breakdown by category:")
     for category, count in sorted(summary["category_counts"].items()):
-        print(f"  {category}: {count}")
+        label = _colorize(category, _CATEGORY_COLOR.get(category, ""), color)
+        print(f"  {label}: {count}")
     print()
     if not summary["worst_offenders"].empty:
         print(f"Top {len(summary['worst_offenders'])} worst offenders:")
         for _, row in summary["worst_offenders"].iterrows():
-            print(f"  {_format_offender(row)}")
+            print(f"  {_format_offender(row, color)}")
 
 
-def _format_offender(row) -> str:
+def _format_offender(row, color: bool = False) -> str:
     category = row["category"]
-    prefix = f"[{category}] {row['symbol']} signal_id={row['signal_id']}"
+    tag = _colorize(f"[{category}]", _CATEGORY_COLOR.get(category, ""), color)
+    prefix = f"{tag} {row['symbol']} signal_id={row['signal_id']}"
     if category == "missing_in_live":
         return f"{prefix} bt_timestamp={row['bt_timestamp']} bt_price={row['bt_price']}"
     if category == "extra_in_live":
