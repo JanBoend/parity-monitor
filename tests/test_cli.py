@@ -125,3 +125,23 @@ def test_cli_help_smoke(capsys):
     captured = capsys.readouterr()
     assert "backtest_log" in captured.out
     assert "live_log" in captured.out
+
+
+def test_cli_no_color_flag_produces_plain_output(tmp_path, capsys):
+    bt_path = tmp_path / "backtest.csv"
+    live_path = tmp_path / "live.csv"
+    _write(bt_path, ["2026-07-06T09:00:00Z,EURUSD,fill,long,1.0850,10000,sig-1"])
+    _write(live_path, ["2026-07-06T09:00:02Z,EURUSD,fill,long,1.0850,10000,sig-1"])
+
+    exit_code = main([str(bt_path), str(live_path), "--no-color"])
+
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    assert "\033[" not in out  # --no-color forces plain output
+
+
+def test_cli_help_lists_no_color(capsys):
+    with pytest.raises(SystemExit):
+        main(["--help"])
+    out = capsys.readouterr().out
+    assert "--no-color" in out

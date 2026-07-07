@@ -4,7 +4,7 @@ import argparse
 import sys
 
 from parity_monitor.pipeline import run
-from parity_monitor.report import print_summary, write_report
+from parity_monitor.report import color_enabled, print_summary, write_report
 from parity_monitor.schema import SchemaError
 
 
@@ -43,6 +43,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--worst-offenders", type=int, default=5,
         help="Number of worst-offending events to list in the summary (default: 5)",
     )
+    parser.add_argument(
+        "--no-color", action="store_true",
+        help="Disable colored terminal output (also respects the NO_COLOR env var)",
+    )
     return parser
 
 
@@ -64,7 +68,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
-    print_summary(summary)
+    print_summary(summary, color=color_enabled(force_disable=args.no_color))
 
     if args.report:
         report_path = args.report_path or f"parity_report.{args.report}"
