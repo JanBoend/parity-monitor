@@ -1,9 +1,9 @@
 """Summary computation and terminal/report output for parity-monitor results."""
 
-import pandas as pd
-
 import os
 import sys
+
+import pandas as pd
 
 _ANSI = {
     "green": "\033[32m",
@@ -107,13 +107,14 @@ def print_summary(summary: dict, color: bool = False) -> None:
     if rate is None:
         print("Match rate: N/A (no comparable events)")
     else:
-        if rate >= 99.9995:
+        shown = round(rate, 1)  # color the displayed (rounded) value so color and number never disagree
+        if shown >= 100.0:
             rate_color = "green"
-        elif rate <= 0.0005:
+        elif shown <= 0.0:
             rate_color = "red"
         else:
             rate_color = "yellow"
-        print(_colorize(f"Match rate: {rate:.1f}%", rate_color, color, bold=True))
+        print(_colorize(f"Match rate: {shown:.1f}%", rate_color, color, bold=True))
     print()
     print("Breakdown by category:")
     for category, count in sorted(summary["category_counts"].items()):

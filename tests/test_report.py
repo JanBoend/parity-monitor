@@ -233,3 +233,16 @@ def test_print_summary_has_ansi_when_color_enabled(capsys):
     print_summary(summary, color=True)
     out = capsys.readouterr().out
     assert "\033[" in out  # color codes present when enabled
+
+
+def test_match_rate_color_matches_rounded_display(capsys):
+    # A rate that rounds up to 100.0% must be colored green (not yellow) so the
+    # color agrees with the number the user actually sees. Regression guard for
+    # the raw-vs-rounded color threshold fix.
+    summary = compute_summary(pd.DataFrame([_row("matched")]))
+    summary["match_rate_pct"] = 99.97  # displays as "100.0%"
+    print_summary(summary, color=True)
+    out = capsys.readouterr().out
+    assert "100.0%" in out
+    assert "\033[32m" in out  # green code, not yellow (\033[33m)
+    assert "\033[33mMatch rate" not in out
