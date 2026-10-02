@@ -19,7 +19,7 @@ Runs entirely on your own machine, self-hosted. Your logs never leave it.
 ## Install
 
 ```
-pip install parity-monitor
+pip install git+https://github.com/JanBoend/parity-monitor.git
 ```
 
 Requires Python 3.10+.
